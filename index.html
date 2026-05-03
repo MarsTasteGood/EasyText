@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuickWrite — AI Writing Assistant</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0c0c11;
+      --bg2:      #101016;
+      --surface:  #14141b;
+      --surface2: #1a1a23;
+      --border:   rgba(255,255,255,0.07);
+      --border2:  rgba(255,255,255,0.13);
+      --purple:   #7c3aed;
+      --purple2:  #a78bfa;
+      --pink:     #db2777;
+      --gradient: linear-gradient(135deg,#7c3aed,#db2777);
+      --glow:     rgba(124,58,237,0.35);
+      --text:     #f1f1f6;
+      --text2:    #9898b4;
+      --muted:    #6565808;
+      --green:    #22d3a3;
+      --red:      #f87171;
+      --yellow:   #fbbf24;
+      --radius:   16px;
+      --radius-sm:11px;
+      --radius-xs: 7px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif;
+      background:
+        radial-gradient(ellipse 55% 55% at 12% 25%, rgba(124,58,237,0.09) 0%, transparent 70%),
+        radial-gradient(ellipse 45% 45% at 88% 75%, rgba(219,39,119,0.06) 0%, transparent 70%),
+        var(--bg);
+      color: var(--text);
+      height: 100vh; overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 15px 32px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(12,12,17,0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      flex-shrink: 0; z-index: 100;
+    }
+
+    .logo {
+      display: flex; align-items: center; gap: 11px;
+      font-size: 1.1rem; font-weight: 700; letter-spacing: -0.03em;
+    }
+
+    .logo-icon {
+      width: 34px; height: 34px;
+      background: var(--gradient);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem;
+      box-shadow: 0 2px 14px rgba(124,58,237,0.5);
+    }
+
+    .api-btn {
+      display: flex; align-items: center; gap: 7px;
+      padding: 7px 15px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 100px; color: var(--text2);
+      font-size: 0.81rem; font-weight: 500;
+      cursor: pointer; transition: all 0.2s;
+    }
+
+    .api-btn:hover { border-color: var(--border2); color: var(--text); }
+    .api-btn.has-key { color: var(--green); border-color: rgba(34,211,163,0.3); background: rgba(34,211,163,0.06); }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    /* ── Layout ── */
+    main { flex: 1; overflow-y: auto; }
+
+    .grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      max-width: 1200px; width: 100%;
+      margin: 0 auto; padding: 28px 28px; gap: 20px;
+    }
+
+    @media (max-width: 800px) {
+      .grid { grid-template-columns: 1fr; padding: 16px; }
+      header { padding: 12px 18px; }
+    }
+
+    /* ── Panel ── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px; border-bottom: 1px solid var(--border);
+      font-size: 0.72rem; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase; color: var(--text2);
+    }
+
+    .panel-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* ── Type toggle ── */
+    .mode-toggle {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 4px; gap: 3px;
+    }
+
+    .mode-btn {
+      padding: 8px 6px; border: none; border-radius: 8px;
+      background: transparent; color: var(--text2);
+      font-size: 0.84rem; font-weight: 500;
+      cursor: pointer; transition: all 0.2s; white-space: nowrap;
+    }
+
+    .mode-btn:hover:not(.active) { color: var(--text); background: rgba(255,255,255,0.04); }
+    .mode-btn.active { background: var(--gradient); color: #fff; box-shadow: 0 2px 14px var(--glow); font-weight: 600; }
+
+    /* ── Language ── */
+    .lang-select-wrap { position: relative; }
+    .lang-select-wrap::after {
+      content: '▾'; position: absolute; right: 13px; top: 50%;
+      transform: translateY(-50%); color: var(--text2);
+      pointer-events: none; font-size: 0.8rem;
+    }
+
+    select {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text);
+      font-size: 0.88rem; font-family: inherit;
+      padding: 10px 34px 10px 14px; width: 100%;
+      cursor: pointer; -webkit-appearance: none; appearance: none;
+      transition: all 0.2s;
+    }
+
+    select:focus { outline: none; border-color: rgba(124,58,237,0.5); box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }
+    select option { background: #14141b; }
+
+    /* ── Tone pills ── */
+    .pill-group { display: flex; flex-wrap: wrap; gap: 7px; }
+
+    .pill {
+      padding: 6px 14px;
+      border: 1px solid var(--border); border-radius: 100px;
+      background: transparent; color: var(--text2);
+      font-size: 0.81rem; font-weight: 500;
+      cursor: pointer; transition: all 0.18s;
+    }
+
+    .pill:hover { border-color: var(--border2); color: var(--text); }
+    .pill.active { background: rgba(124,58,237,0.15); border-color: rgba(124,58,237,0.5); color: var(--purple2); font-weight: 600; }
+
+    /* ── Vibe grid (12 vibes, 4 cols) ── */
+    .vibe-group { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+
+    .vibe-pill {
+      padding: 12px 6px 10px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text2);
+      font-size: 0.77rem; font-weight: 500;
+      cursor: pointer; transition: all 0.18s;
+      text-align: center; display: flex; flex-direction: column;
+      align-items: center; gap: 5px;
+    }
+
+    .vibe-emoji { font-size: 1.45rem; line-height: 1; }
+    .vibe-name { font-size: 0.73rem; color: var(--text2); font-weight: 500; letter-spacing: 0.01em; }
+
+    .vibe-pill:hover {
+      border-color: rgba(124,58,237,0.35);
+      background: rgba(124,58,237,0.08);
+      transform: translateY(-1px);
+      box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+    }
+
+    .vibe-pill.active {
+      background: linear-gradient(135deg, rgba(124,58,237,0.22), rgba(219,39,119,0.12));
+      border-color: rgba(124,58,237,0.55);
+      box-shadow: 0 0 14px rgba(124,58,237,0.2);
+    }
+
+    .vibe-pill.active .vibe-name { color: var(--purple2); }
+
+    /* ── Fields ── */
+    .field { display: flex; flex-direction: column; gap: 6px; }
+
+    label {
+      font-size: 0.72rem; font-weight: 700;
+      color: var(--text2); letter-spacing: 0.06em; text-transform: uppercase;
+    }
+
+    .label-opt { color: var(--text2); opacity: 0.6; font-size: 0.72rem; text-transform: none; letter-spacing: 0; font-weight: 400; }
+
+    textarea, input[type="text"], input[type="password"] {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text);
+      font-size: 0.88rem; font-family: inherit;
+      padding: 10px 14px; width: 100%;
+      transition: all 0.2s; resize: none; line-height: 1.6;
+    }
+
+    textarea:focus, input:focus {
+      outline: none; border-color: rgba(124,58,237,0.5);
+      box-shadow: 0 0 0 3px rgba(124,58,237,0.1);
+      background: rgba(124,58,237,0.03);
+    }
+
+    textarea::placeholder, input::placeholder { color: var(--text2); opacity: 0.5; }
+
+    /* ── Generate button ── */
+    .generate-btn {
+      width: 100%; padding: 13px;
+      background: var(--gradient);
+      border: none; border-radius: var(--radius-sm);
+      color: #fff; font-size: 0.93rem; font-weight: 600;
+      cursor: pointer; transition: all 0.25s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      box-shadow: 0 4px 18px rgba(124,58,237,0.35);
+      letter-spacing: -0.01em;
+    }
+
+    .generate-btn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(124,58,237,0.45);
+    }
+
+    .generate-btn:active:not(:disabled) { transform: translateY(0); }
+    .generate-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+
+    /* ── Output panel ── */
+    .output-panel { display: flex; flex-direction: column; }
+
+    .output-body {
+      flex: 1; padding: 18px;
+      display: flex; flex-direction: column; gap: 12px;
+      min-height: 390px;
+    }
+
+    .empty-state {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 14px; color: var(--text2); text-align: center;
+      padding: 40px 20px;
+    }
+
+    .empty-icon { font-size: 2.8rem; opacity: 0.2; }
+
+    .empty-state p { font-size: 0.86rem; max-width: 220px; line-height: 1.6; color: var(--text2); opacity: 0.7; }
+
+    /* ── Subject box ── */
+    .subject-box {
+      background: rgba(124,58,237,0.08);
+      border: 1px solid rgba(124,58,237,0.25);
+      border-radius: var(--radius-sm); padding: 12px 16px;
+    }
+
+    .subject-label {
+      font-size: 0.68rem; font-weight: 700; color: var(--purple2);
+      text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 5px;
+    }
+
+    .subject-text { font-size: 0.93rem; font-weight: 600; color: var(--text); }
+
+    .output-text {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 16px 18px;
+      font-size: 0.88rem; line-height: 1.75; color: var(--text);
+      white-space: pre-wrap; flex: 1; min-height: 240px; font-family: inherit;
+    }
+
+    /* ── Text option cards ── */
+    .text-options { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+
+    .text-card {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 14px; padding: 16px 18px;
+      display: flex; flex-direction: column; gap: 12px;
+      transition: all 0.2s; cursor: default;
+    }
+
+    .text-card:hover {
+      border-color: rgba(124,58,237,0.28);
+      box-shadow: 0 6px 22px rgba(0,0,0,0.3);
+      transform: translateY(-1px);
+    }
+
+    .text-card-label {
+      font-size: 0.68rem; font-weight: 700; color: var(--text2);
+      text-transform: uppercase; letter-spacing: 0.07em; opacity: 0.6;
+    }
+
+    .text-card-body {
+      font-size: 0.91rem; line-height: 1.65; color: var(--text); white-space: pre-wrap;
+    }
+
+    .text-card-footer { display: flex; justify-content: flex-end; }
+
+    .copy-card-btn {
+      padding: 5px 14px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 100px; color: var(--text2);
+      font-size: 0.77rem; font-weight: 500;
+      cursor: pointer; transition: all 0.18s;
+    }
+
+    .copy-card-btn:hover { border-color: rgba(124,58,237,0.4); color: var(--purple2); background: rgba(124,58,237,0.08); }
+    .copy-card-btn.copied { border-color: var(--green); color: var(--green); background: rgba(34,211,163,0.07); }
+
+    .texts-streaming {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 16px 18px;
+      font-size: 0.88rem; line-height: 1.75; color: var(--text); white-space: pre-wrap;
+      min-height: 120px;
+    }
+
+    /* ── Refine bar ── */
+    .refine-bar {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+      padding: 11px 18px; border-top: 1px solid var(--border);
+      background: rgba(255,255,255,0.01);
+    }
+
+    .refine-label {
+      font-size: 0.68rem; font-weight: 700; color: var(--text2);
+      text-transform: uppercase; letter-spacing: 0.07em; margin-right: 3px;
+    }
+
+    .refine-btn {
+      padding: 5px 12px;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 100px;
+      color: var(--text2); font-size: 0.77rem; font-weight: 500;
+      cursor: pointer; transition: all 0.18s;
+    }
+
+    .refine-btn:hover:not(:disabled) { border-color: rgba(124,58,237,0.4); color: var(--purple2); background: rgba(124,58,237,0.08); }
+    .refine-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ── Stats bar ── */
+    .stats {
+      display: flex; flex-wrap: wrap; gap: 16px;
+      padding: 9px 20px; border-top: 1px solid var(--border);
+      font-size: 0.75rem; color: var(--text2);
+      background: rgba(255,255,255,0.01);
+    }
+
+    .stat { display: flex; align-items: center; gap: 5px; }
+    .stat-val { color: var(--purple2); font-weight: 600; }
+
+    /* ── Action bar ── */
+    .action-bar {
+      display: flex; gap: 8px;
+      padding: 12px 18px; border-top: 1px solid var(--border);
+      background: rgba(255,255,255,0.01);
+    }
+
+    .action-btn {
+      flex: 1; padding: 8px 12px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-xs); color: var(--text2);
+      font-size: 0.81rem; font-weight: 500; cursor: pointer; transition: all 0.18s;
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+    }
+
+    .action-btn:hover:not(:disabled) { border-color: var(--border2); color: var(--text); background: var(--surface); }
+    .action-btn.copied { border-color: var(--green); color: var(--green); background: rgba(34,211,163,0.07); }
+    .action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ── Spinner / cursor ── */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff; border-radius: 50%; animation: spin 0.65s linear infinite; }
+
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+    .cursor::after { content:'▋'; animation: blink 1s infinite; color: var(--purple2); font-size:0.85em; }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+
+    .modal {
+      background: var(--surface); border: 1px solid var(--border2);
+      border-radius: var(--radius); padding: 28px;
+      width: 420px; max-width: calc(100vw - 40px);
+      display: flex; flex-direction: column; gap: 16px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+    }
+
+    .modal h2 { font-size: 1rem; font-weight: 700; letter-spacing: -0.02em; }
+    .modal p { font-size: 0.83rem; color: var(--text2); line-height: 1.55; }
+    .modal-btns { display: flex; gap: 10px; margin-top: 4px; }
+
+    .btn-primary {
+      flex: 1; padding: 10px;
+      background: var(--gradient);
+      border: none; border-radius: var(--radius-sm);
+      color: #fff; font-size: 0.88rem; font-weight: 600;
+      cursor: pointer; transition: opacity 0.2s;
+      box-shadow: 0 4px 14px var(--glow);
+    }
+
+    .btn-primary:hover { opacity: 0.85; }
+
+    .btn-ghost {
+      flex: 1; padding: 10px; background: transparent;
+      border: 1px solid var(--border2); border-radius: var(--radius-sm);
+      color: var(--text2); font-size: 0.88rem;
+      cursor: pointer; transition: all 0.2s;
+    }
+
+    .btn-ghost:hover { border-color: var(--border2); color: var(--text); background: var(--surface2); }
+
+    /* ── Key status ── */
+    .key-valid   { color: var(--green); font-size: 0.8rem; }
+    .key-invalid { color: var(--yellow); font-size: 0.8rem; }
+
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">✍️</div>
+    QuickWrite
+  </div>
+  <button class="api-btn" id="apiBtn" onclick="openModal()">
+    <div class="dot"></div>
+    <span id="apiLabel">Add API Key</span>
+  </button>
+</header>
+
+<main>
+  <div class="grid">
+
+    <!-- ── Left: Compose ── -->
+    <div class="panel">
+      <div class="panel-header"><span id="composeHeader">Compose</span></div>
+      <div class="panel-body">
+
+        <div class="field">
+          <label id="typeLabel">Type</label>
+          <div class="mode-toggle">
+            <button class="mode-btn active" id="modeEmail"   onclick="setMode('email')">📧 Email</button>
+            <button class="mode-btn"        id="modeMessage" onclick="setMode('message')">💬 Message</button>
+            <button class="mode-btn"        id="modeText"    onclick="setMode('text')">📱 Text</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label id="langLabel">Language</label>
+          <div class="lang-select-wrap">
+            <select id="langSelect" onchange="setLang(this.value)">
+              <option value="en">🇺🇸 English</option>
+              <option value="ja">🇯🇵 日本語</option>
+              <option value="es">🇪🇸 Español</option>
+              <option value="fr">🇫🇷 Français</option>
+              <option value="zh">🇨🇳 中文</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Tone (email/message) -->
+        <div class="field" id="toneField">
+          <label id="toneLabel">Tone</label>
+          <div class="pill-group">
+            <button class="pill active" data-tone="professional" onclick="setTone(this)">Professional</button>
+            <button class="pill" data-tone="friendly"   onclick="setTone(this)">Friendly</button>
+            <button class="pill" data-tone="casual"     onclick="setTone(this)">Casual</button>
+            <button class="pill" data-tone="formal"     onclick="setTone(this)">Formal</button>
+            <button class="pill" data-tone="persuasive" onclick="setTone(this)">Persuasive</button>
+            <button class="pill" data-tone="concise"    onclick="setTone(this)">Concise</button>
+          </div>
+        </div>
+
+        <!-- Vibe (text) — 12 options, 4 cols -->
+        <div class="field" id="vibeField" style="display:none">
+          <label id="vibeLabel">Vibe</label>
+          <div class="vibe-group">
+            <button class="vibe-pill active" data-vibe="funny"     onclick="setVibe(this)"><span class="vibe-emoji">😂</span><span class="vibe-name">Funny</span></button>
+            <button class="vibe-pill"        data-vibe="sweet"     onclick="setVibe(this)"><span class="vibe-emoji">🥺</span><span class="vibe-name">Sweet</span></button>
+            <button class="vibe-pill"        data-vibe="hype"      onclick="setVibe(this)"><span class="vibe-emoji">🔥</span><span class="vibe-name">Hype</span></button>
+            <button class="vibe-pill"        data-vibe="chill"     onclick="setVibe(this)"><span class="vibe-emoji">🤙</span><span class="vibe-name">Chill</span></button>
+            <button class="vibe-pill"        data-vibe="flirty"    onclick="setVibe(this)"><span class="vibe-emoji">😏</span><span class="vibe-name">Flirty</span></button>
+            <button class="vibe-pill"        data-vibe="sorry"     onclick="setVibe(this)"><span class="vibe-emoji">🙏</span><span class="vibe-name">Sorry</span></button>
+            <button class="vibe-pill"        data-vibe="dead"      onclick="setVibe(this)"><span class="vibe-emoji">💀</span><span class="vibe-name">Dead</span></button>
+            <button class="vibe-pill"        data-vibe="savage"    onclick="setVibe(this)"><span class="vibe-emoji">😤</span><span class="vibe-name">Savage</span></button>
+            <button class="vibe-pill"        data-vibe="support"   onclick="setVibe(this)"><span class="vibe-emoji">🫂</span><span class="vibe-name">Support</span></button>
+            <button class="vibe-pill"        data-vibe="celebrate" onclick="setVibe(this)"><span class="vibe-emoji">🎉</span><span class="vibe-name">Celebrate</span></button>
+            <button class="vibe-pill"        data-vibe="sarcastic" onclick="setVibe(this)"><span class="vibe-emoji">🙄</span><span class="vibe-name">Sarcastic</span></button>
+            <button class="vibe-pill"        data-vibe="dramatic"  onclick="setVibe(this)"><span class="vibe-emoji">😭</span><span class="vibe-name">Dramatic</span></button>
+          </div>
+        </div>
+
+        <!-- Context (always visible, label changes) -->
+        <div class="field">
+          <label id="contextLabel">What's this about?</label>
+          <textarea id="context" rows="3"></textarea>
+        </div>
+
+        <!-- Email/Message fields -->
+        <div id="writeFields">
+          <div class="field" style="margin-bottom:16px">
+            <label id="keypointsLabel">Key points <span class="label-opt" id="keypointsOpt">(optional)</span></label>
+            <textarea id="keypoints" rows="3"></textarea>
+          </div>
+          <div class="field" id="recipientField" style="margin-bottom:16px">
+            <label id="recipientLabel">To / Recipient <span class="label-opt" id="recipientOpt">(optional)</span></label>
+            <input type="text" id="recipient">
+          </div>
+          <div class="field">
+            <label id="draftLabel">Improve my draft <span class="label-opt" id="draftOpt">(optional)</span></label>
+            <textarea id="draft" rows="3"></textarea>
+          </div>
+        </div>
+
+        <!-- Text fields -->
+        <div id="textFields" style="display:none">
+          <div class="field" style="margin-bottom:16px">
+            <label id="theyMsgLabel">They said <span class="label-opt" id="theyMsgOpt">(optional)</span></label>
+            <textarea id="theyMsg" rows="3"></textarea>
+          </div>
+          <div class="field">
+            <label id="youWantLabel">What you want to say <span class="label-opt" id="youWantOpt">(optional)</span></label>
+            <textarea id="youWant" rows="2"></textarea>
+          </div>
+        </div>
+
+        <button class="generate-btn" id="generateBtn" onclick="handleGenerate()">
+          <span id="btnContent">✨ Generate</span>
+        </button>
+
+      </div>
+    </div>
+
+    <!-- ── Right: Output ── -->
+    <div class="panel output-panel">
+      <div class="panel-header"><span id="resultHeader">Result</span></div>
+
+      <div class="output-body" id="outputBody">
+        <div class="empty-state">
+          <div class="empty-icon">✨</div>
+          <p id="emptyStateMsg">Fill in the form and click Generate</p>
+        </div>
+      </div>
+
+      <div class="refine-bar" id="refineBar" style="display:none">
+        <span class="refine-label" id="refineLabel">Refine:</span>
+        <button class="refine-btn" id="shorterBtn" onclick="refine('shorter')"                   disabled></button>
+        <button class="refine-btn" id="longerBtn"  onclick="refine('longer')"                    disabled></button>
+        <button class="refine-btn" id="formalBtn"  onclick="refine('more formal')"               disabled></button>
+        <button class="refine-btn" id="casualBtn"  onclick="refine('more casual')"               disabled></button>
+        <button class="refine-btn" id="directBtn"  onclick="refine('more direct and assertive')" disabled></button>
+      </div>
+
+      <div class="stats" id="statsBar" style="display:none">
+        <div class="stat"><span id="wordsLabel">Words:</span>&nbsp;<span class="stat-val" id="wordCountStat">—</span></div>
+        <div class="stat"><span id="linesLabel">Lines:</span>&nbsp;<span class="stat-val" id="lineCountStat">—</span></div>
+        <div class="stat"><span id="readTimeLabel">~Read time:</span>&nbsp;<span class="stat-val" id="readTimeStat">—</span></div>
+      </div>
+
+      <div class="action-bar" id="actionBar" style="display:none">
+        <button class="action-btn" id="copyBtn"        onclick="copyOutput()"  disabled></button>
+        <button class="action-btn" id="copySubjectBtn" onclick="copySubject()" style="display:none" disabled></button>
+        <button class="action-btn" id="clearBtn"       onclick="clearOutput()" disabled></button>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- API Key Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <h2>🔑 API Key</h2>
+    <p id="modalDesc">Stored only in your browser's localStorage — never sent anywhere except Anthropic's API.</p>
+    <div class="field">
+      <label>Claude API Key</label>
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." oninput="updateKeyPreview()">
+    </div>
+    <p id="keyStatus"></p>
+    <div class="modal-btns">
+      <button class="btn-primary" id="modalSaveBtn"   onclick="saveKey()">Save</button>
+      <button class="btn-ghost"   id="modalCancelBtn" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── Translations ── */
+const LANGS = {
+  en: {
+    composeHeader:'Compose', resultHeader:'Result',
+    typeLabel:'Type', langLabel:'Language', toneLabel:'Tone',
+    emailBtn:'📧 Email', messageBtn:'💬 Message', textBtn:'📱 Text',
+    tones:{ professional:'Professional', friendly:'Friendly', casual:'Casual', formal:'Formal', persuasive:'Persuasive', concise:'Concise' },
+    vibeLabel:'Vibe',
+    vibes:{ funny:'Funny', sweet:'Sweet', hype:'Hype', chill:'Chill', flirty:'Flirty', sorry:'Sorry', dead:'Dead', savage:'Savage', support:'Support', celebrate:'Celebrate', sarcastic:'Sarcastic', dramatic:'Dramatic' },
+    contextLabel:"What's this about?", contextLabelText:"What's going on?",
+    contextPlaceholder:'e.g. Following up on a job interview from yesterday…',
+    textContextPlaceholder:'e.g. My friend just got a promotion and I want to congratulate them',
+    keypointsLabel:'Key points', keypointsOpt:'(optional)',
+    keypointsPlaceholder:"• Available to start immediately\n• Thank them\n• Ask about timeline",
+    recipientLabel:'To / Recipient', recipientOpt:'(optional)',
+    recipientPlaceholder:'e.g. Hiring manager at a tech startup',
+    draftLabel:'Improve my draft', draftOpt:'(optional)',
+    draftPlaceholder:'Paste a rough draft and AI will polish it…',
+    theyMsgLabel:'They said', theyMsgOpt:'(optional)',
+    theyMsgPlaceholder:'Paste what they sent you…',
+    youWantLabel:'What you want to say', youWantOpt:'(optional)',
+    youWantPlaceholder:"e.g. I'm so proud of them, maybe add a joke",
+    generateBtn:'✨ Generate', generatingBtn:'Writing…',
+    refineLabel:'Refine:',
+    shorter:'📏 Shorter', longer:'📝 Longer',
+    moreFormal:'🎩 More Formal', moreCasual:'😊 More Casual', moreDirect:'⚡ More Direct',
+    wordsLabel:'Words:', linesLabel:'Lines:', readTimeLabel:'~Read time:',
+    copyBtn:'📋 Copy', copySubjectBtn:'📌 Copy Subject', clearBtn:'🗑 Clear',
+    copiedText:'✓ Copied!',
+    emptyStateMsg:'Fill in the form and click Generate',
+    subjectLabel:'Subject Line',
+    apiLabel:'Add API Key', apiKeySaved:'Key saved',
+    modalDesc:"Stored only in your browser's localStorage — never sent anywhere except Anthropic's API.",
+    modalSave:'Save', modalCancel:'Cancel',
+    langPrompt:'Write entirely in English.',
+    alertEmpty:'Please describe what you want to write about.',
+    errorTitle:'Something went wrong',
+    optionLabel:'Option',
+    isCJK: false,
+  },
+  ja: {
+    composeHeader:'作成', resultHeader:'結果',
+    typeLabel:'種類', langLabel:'言語', toneLabel:'トーン',
+    emailBtn:'📧 メール', messageBtn:'💬 メッセージ', textBtn:'📱 テキスト',
+    tones:{ professional:'プロフェッショナル', friendly:'フレンドリー', casual:'カジュアル', formal:'フォーマル', persuasive:'説得力', concise:'簡潔' },
+    vibeLabel:'雰囲気',
+    vibes:{ funny:'面白い', sweet:'かわいい', hype:'テンション高', chill:'まったり', flirty:'いい感じ', sorry:'ごめんね', dead:'ウケる', savage:'辛辣', support:'サポート', celebrate:'お祝い', sarcastic:'皮肉', dramatic:'大げさ' },
+    contextLabel:'内容は？', contextLabelText:'どんな状況？',
+    contextPlaceholder:'例：昨日の面接のフォローアップ',
+    textContextPlaceholder:'例：友達が昇進したのでお祝いしたい',
+    keypointsLabel:'含めたいポイント', keypointsOpt:'（任意）',
+    keypointsPlaceholder:'• 即日入社可能\n• お礼を伝える\n• スケジュール確認',
+    recipientLabel:'宛先', recipientOpt:'（任意）',
+    recipientPlaceholder:'例：スタートアップの採用担当者',
+    draftLabel:'下書きを改善', draftOpt:'（任意）',
+    draftPlaceholder:'下書きを貼り付けると、AIが洗練します…',
+    theyMsgLabel:'相手のメッセージ', theyMsgOpt:'（任意）',
+    theyMsgPlaceholder:'相手が送ってきた内容を貼り付け…',
+    youWantLabel:'伝えたいこと', youWantOpt:'（任意）',
+    youWantPlaceholder:'例：本当に嬉しい、冗談も入れたい',
+    generateBtn:'✨ 生成する', generatingBtn:'作成中…',
+    refineLabel:'調整：',
+    shorter:'📏 短くする', longer:'📝 長くする',
+    moreFormal:'🎩 より丁寧に', moreCasual:'😊 よりカジュアルに', moreDirect:'⚡ より直接的に',
+    wordsLabel:'文字数：', linesLabel:'行数：', readTimeLabel:'読了時間：',
+    copyBtn:'📋 コピー', copySubjectBtn:'📌 件名をコピー', clearBtn:'🗑 クリア',
+    copiedText:'✓ コピーしました！',
+    emptyStateMsg:'フォームを入力して「生成する」をクリック',
+    subjectLabel:'件名',
+    apiLabel:'APIキーを追加', apiKeySaved:'キー保存済み',
+    modalDesc:'キーはブラウザのlocalStorageにのみ保存されます。',
+    modalSave:'保存', modalCancel:'キャンセル',
+    langPrompt:'すべて日本語で書いてください。',
+    alertEmpty:'内容を入力してください。',
+    errorTitle:'エラーが発生しました',
+    optionLabel:'候補',
+    isCJK: true,
+  },
+  es: {
+    composeHeader:'Redactar', resultHeader:'Resultado',
+    typeLabel:'Tipo', langLabel:'Idioma', toneLabel:'Tono',
+    emailBtn:'📧 Correo', messageBtn:'💬 Mensaje', textBtn:'📱 Texto',
+    tones:{ professional:'Profesional', friendly:'Amigable', casual:'Casual', formal:'Formal', persuasive:'Persuasivo', concise:'Conciso' },
+    vibeLabel:'Vibra',
+    vibes:{ funny:'Gracioso', sweet:'Tierno', hype:'Emocionado', chill:'Relajado', flirty:'Coqueto', sorry:'Lo siento', dead:'Me muero', savage:'Salvaje', support:'Apoyo', celebrate:'Celebrar', sarcastic:'Sarcástico', dramatic:'Dramático' },
+    contextLabel:'¿De qué trata?', contextLabelText:'¿Qué está pasando?',
+    contextPlaceholder:'Ej: Seguimiento de una entrevista de trabajo de ayer…',
+    textContextPlaceholder:'Ej: Mi amigo acaba de conseguir un ascenso',
+    keypointsLabel:'Puntos clave', keypointsOpt:'(opcional)',
+    keypointsPlaceholder:'• Disponibilidad inmediata\n• Agradecer\n• Preguntar el cronograma',
+    recipientLabel:'Para / Destinatario', recipientOpt:'(opcional)',
+    recipientPlaceholder:'Ej: Gerente de contratación',
+    draftLabel:'Mejorar mi borrador', draftOpt:'(opcional)',
+    draftPlaceholder:'Pega un borrador y la IA lo pulirá…',
+    theyMsgLabel:'Ellos dijeron', theyMsgOpt:'(opcional)',
+    theyMsgPlaceholder:'Pega lo que te enviaron…',
+    youWantLabel:'Lo que quieres decir', youWantOpt:'(opcional)',
+    youWantPlaceholder:'Ej: Estoy muy orgulloso, quizás un chiste',
+    generateBtn:'✨ Generar', generatingBtn:'Escribiendo…',
+    refineLabel:'Ajustar:',
+    shorter:'📏 Más corto', longer:'📝 Más largo',
+    moreFormal:'🎩 Más formal', moreCasual:'😊 Más casual', moreDirect:'⚡ Más directo',
+    wordsLabel:'Palabras:', linesLabel:'Líneas:', readTimeLabel:'~Lectura:',
+    copyBtn:'📋 Copiar', copySubjectBtn:'📌 Copiar asunto', clearBtn:'🗑 Limpiar',
+    copiedText:'✓ ¡Copiado!',
+    emptyStateMsg:'Rellena el formulario y haz clic en Generar',
+    subjectLabel:'Asunto',
+    apiLabel:'Añadir clave API', apiKeySaved:'Clave guardada',
+    modalDesc:'Almacenada solo en localStorage de tu navegador.',
+    modalSave:'Guardar', modalCancel:'Cancelar',
+    langPrompt:'Escribe todo en español.',
+    alertEmpty:'Por favor describe lo que quieres escribir.',
+    errorTitle:'Algo salió mal',
+    optionLabel:'Opción',
+    isCJK: false,
+  },
+  fr: {
+    composeHeader:'Rédiger', resultHeader:'Résultat',
+    typeLabel:'Type', langLabel:'Langue', toneLabel:'Ton',
+    emailBtn:'📧 Email', messageBtn:'💬 Message', textBtn:'📱 Texto',
+    tones:{ professional:'Professionnel', friendly:'Amical', casual:'Décontracté', formal:'Formel', persuasive:'Persuasif', concise:'Concis' },
+    vibeLabel:'Ambiance',
+    vibes:{ funny:'Drôle', sweet:'Adorable', hype:'Enthousiaste', chill:'Détendu', flirty:'Charmeur', sorry:'Désolé', dead:'Mort de rire', savage:'Brutal', support:'Soutien', celebrate:'Fêter', sarcastic:'Sarcastique', dramatic:'Dramatique' },
+    contextLabel:"De quoi s'agit-il ?", contextLabelText:"Qu'est-ce qui se passe ?",
+    contextPlaceholder:"Ex : Suivi d'un entretien d'hier…",
+    textContextPlaceholder:"Ex : Mon ami vient d'avoir une promotion",
+    keypointsLabel:'Points clés', keypointsOpt:'(facultatif)',
+    keypointsPlaceholder:'• Disponibilité immédiate\n• Remercier\n• Demander le calendrier',
+    recipientLabel:'À / Destinataire', recipientOpt:'(facultatif)',
+    recipientPlaceholder:'Ex : Responsable RH dans une startup',
+    draftLabel:'Améliorer mon brouillon', draftOpt:'(facultatif)',
+    draftPlaceholder:"Collez un brouillon et l'IA le peaufinera…",
+    theyMsgLabel:'Ils ont dit', theyMsgOpt:'(facultatif)',
+    theyMsgPlaceholder:"Colle ce qu'ils t'ont envoyé…",
+    youWantLabel:'Ce que tu veux dire', youWantOpt:'(facultatif)',
+    youWantPlaceholder:"Ex : Je suis vraiment fier, peut-être une blague",
+    generateBtn:'✨ Générer', generatingBtn:'Rédaction…',
+    refineLabel:'Affiner :',
+    shorter:'📏 Plus court', longer:'📝 Plus long',
+    moreFormal:'🎩 Plus formel', moreCasual:'😊 Plus décontracté', moreDirect:'⚡ Plus direct',
+    wordsLabel:'Mots :', linesLabel:'Lignes :', readTimeLabel:'~Lecture :',
+    copyBtn:'📋 Copier', copySubjectBtn:"📌 Copier l'objet", clearBtn:'🗑 Effacer',
+    copiedText:'✓ Copié !',
+    emptyStateMsg:'Remplissez le formulaire et cliquez sur Générer',
+    subjectLabel:'Objet',
+    apiLabel:'Ajouter clé API', apiKeySaved:'Clé enregistrée',
+    modalDesc:'Stockée uniquement dans le localStorage de votre navigateur.',
+    modalSave:'Enregistrer', modalCancel:'Annuler',
+    langPrompt:'Écris entièrement en français.',
+    alertEmpty:'Veuillez décrire ce que vous souhaitez écrire.',
+    errorTitle:'Une erreur est survenue',
+    optionLabel:'Option',
+    isCJK: false,
+  },
+  zh: {
+    composeHeader:'撰写', resultHeader:'结果',
+    typeLabel:'类型', langLabel:'语言', toneLabel:'语气',
+    emailBtn:'📧 邮件', messageBtn:'💬 消息', textBtn:'📱 短信',
+    tones:{ professional:'专业', friendly:'友好', casual:'随意', formal:'正式', persuasive:'有说服力', concise:'简洁' },
+    vibeLabel:'氛围',
+    vibes:{ funny:'搞笑', sweet:'甜蜜', hype:'激动', chill:'放松', flirty:'调皮', sorry:'抱歉', dead:'笑死', savage:'犀利', support:'支持', celebrate:'庆祝', sarcastic:'讽刺', dramatic:'夸张' },
+    contextLabel:'内容是什么？', contextLabelText:'发生了什么？',
+    contextPlaceholder:'例：跟进昨天的工作面试…',
+    textContextPlaceholder:'例：朋友刚晋升，想表示祝贺',
+    keypointsLabel:'需要包含的要点', keypointsOpt:'（可选）',
+    keypointsPlaceholder:'• 可以立即入职\n• 感谢对方\n• 询问时间安排',
+    recipientLabel:'收件人', recipientOpt:'（可选）',
+    recipientPlaceholder:'例：科技初创公司的招聘经理',
+    draftLabel:'改进我的草稿', draftOpt:'（可选）',
+    draftPlaceholder:'在此粘贴草稿，AI 将为您润色…',
+    theyMsgLabel:'他们说了什么', theyMsgOpt:'（可选）',
+    theyMsgPlaceholder:'粘贴他们发来的内容…',
+    youWantLabel:'你想说什么', youWantOpt:'（可选）',
+    youWantPlaceholder:'例：真的很为他们骄傲，也许加个玩笑',
+    generateBtn:'✨ 生成', generatingBtn:'撰写中…',
+    refineLabel:'调整：',
+    shorter:'📏 更短', longer:'📝 更长',
+    moreFormal:'🎩 更正式', moreCasual:'😊 更随意', moreDirect:'⚡ 更直接',
+    wordsLabel:'字数：', linesLabel:'行数：', readTimeLabel:'~阅读时间：',
+    copyBtn:'📋 复制', copySubjectBtn:'📌 复制主题', clearBtn:'🗑 清除',
+    copiedText:'✓ 已复制！',
+    emptyStateMsg:'填写表单并点击"生成"',
+    subjectLabel:'主题',
+    apiLabel:'添加 API 密钥', apiKeySaved:'密钥已保存',
+    modalDesc:'仅存储在浏览器的 localStorage 中。',
+    modalSave:'保存', modalCancel:'取消',
+    langPrompt:'请全部用中文书写。',
+    alertEmpty:'请描述您想写的内容。',
+    errorTitle:'出现错误',
+    optionLabel:'选项',
+    isCJK: true,
+  },
+};
+
+/* ── State ── */
+let mode   = 'email';
+let tone   = 'professional';
+let vibe   = 'funny';
+let lang   = localStorage.getItem('qw_lang')   || 'en';
+let apiKey = localStorage.getItem('qw_apiKey') || '';
+let currentOutput  = '';
+let currentSubject = '';
+let isLoading      = false;
+
+function t(key) { return LANGS[lang][key] ?? LANGS['en'][key] ?? ''; }
+
+/* ── Init ── */
+document.getElementById('langSelect').value = lang;
+applyLang();
+updateApiBtn();
+
+/* ── Mode ── */
+function setMode(m) {
+  mode = m;
+  document.getElementById('modeEmail').classList.toggle('active', m === 'email');
+  document.getElementById('modeMessage').classList.toggle('active', m === 'message');
+  document.getElementById('modeText').classList.toggle('active', m === 'text');
+  const isText = m === 'text';
+  document.getElementById('toneField').style.display   = isText ? 'none' : '';
+  document.getElementById('vibeField').style.display   = isText ? '' : 'none';
+  document.getElementById('writeFields').style.display = isText ? 'none' : '';
+  document.getElementById('textFields').style.display  = isText ? '' : 'none';
+  document.getElementById('recipientField').style.display = m === 'email' ? '' : 'none';
+  const L = LANGS[lang];
+  document.getElementById('contextLabel').textContent     = isText ? L.contextLabelText : L.contextLabel;
+  document.getElementById('context').placeholder          = isText ? L.textContextPlaceholder : L.contextPlaceholder;
+  clearOutput();
+}
+
+/* ── Tone / Vibe ── */
+function setTone(el) {
+  document.querySelectorAll('.pill[data-tone]').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  tone = el.dataset.tone;
+}
+
+function setVibe(el) {
+  document.querySelectorAll('.vibe-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  vibe = el.dataset.vibe;
+}
+
+/* ── Language ── */
+function setLang(l) {
+  lang = l;
+  localStorage.setItem('qw_lang', l);
+  applyLang();
+}
+
+function applyLang() {
+  const L = LANGS[lang];
+  document.getElementById('composeHeader').textContent   = L.composeHeader;
+  document.getElementById('resultHeader').textContent    = L.resultHeader;
+  document.getElementById('typeLabel').textContent       = L.typeLabel;
+  document.getElementById('langLabel').textContent       = L.langLabel;
+  document.getElementById('toneLabel').textContent       = L.toneLabel;
+  document.getElementById('vibeLabel').textContent       = L.vibeLabel;
+  document.getElementById('modeEmail').textContent       = L.emailBtn;
+  document.getElementById('modeMessage').textContent     = L.messageBtn;
+  document.getElementById('modeText').textContent        = L.textBtn;
+  document.querySelectorAll('.pill[data-tone]').forEach(el => { el.textContent = L.tones[el.dataset.tone] || el.dataset.tone; });
+  document.querySelectorAll('.vibe-pill').forEach(el => { el.querySelector('.vibe-name').textContent = L.vibes[el.dataset.vibe] || el.dataset.vibe; });
+  document.getElementById('contextLabel').textContent    = mode === 'text' ? L.contextLabelText : L.contextLabel;
+  document.getElementById('context').placeholder         = mode === 'text' ? L.textContextPlaceholder : L.contextPlaceholder;
+  setLabelText('keypointsLabel', L.keypointsLabel);
+  document.getElementById('keypointsOpt').textContent    = L.keypointsOpt;
+  document.getElementById('keypoints').placeholder       = L.keypointsPlaceholder;
+  setLabelText('recipientLabel', L.recipientLabel);
+  document.getElementById('recipientOpt').textContent    = L.recipientOpt;
+  document.getElementById('recipient').placeholder       = L.recipientPlaceholder;
+  setLabelText('draftLabel', L.draftLabel);
+  document.getElementById('draftOpt').textContent        = L.draftOpt;
+  document.getElementById('draft').placeholder           = L.draftPlaceholder;
+  setLabelText('theyMsgLabel', L.theyMsgLabel);
+  document.getElementById('theyMsgOpt').textContent      = L.theyMsgOpt;
+  document.getElementById('theyMsg').placeholder         = L.theyMsgPlaceholder;
+  setLabelText('youWantLabel', L.youWantLabel);
+  document.getElementById('youWantOpt').textContent      = L.youWantOpt;
+  document.getElementById('youWant').placeholder         = L.youWantPlaceholder;
+  if (!isLoading) document.getElementById('btnContent').textContent = L.generateBtn;
+  document.getElementById('refineLabel').textContent     = L.refineLabel;
+  document.getElementById('shorterBtn').textContent      = L.shorter;
+  document.getElementById('longerBtn').textContent       = L.longer;
+  document.getElementById('formalBtn').textContent       = L.moreFormal;
+  document.getElementById('casualBtn').textContent       = L.moreCasual;
+  document.getElementById('directBtn').textContent       = L.moreDirect;
+  document.getElementById('wordsLabel').textContent      = L.wordsLabel;
+  document.getElementById('linesLabel').textContent      = L.linesLabel;
+  document.getElementById('readTimeLabel').textContent   = L.readTimeLabel;
+  document.getElementById('copyBtn').textContent         = L.copyBtn;
+  document.getElementById('copySubjectBtn').textContent  = L.copySubjectBtn;
+  document.getElementById('clearBtn').textContent        = L.clearBtn;
+  const emptyMsg = document.getElementById('emptyStateMsg');
+  if (emptyMsg) emptyMsg.textContent = L.emptyStateMsg;
+  document.getElementById('modalDesc').textContent       = L.modalDesc;
+  document.getElementById('modalSaveBtn').textContent    = L.modalSave;
+  document.getElementById('modalCancelBtn').textContent  = L.modalCancel;
+  updateApiBtn();
+}
+
+function setLabelText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.childNodes[0].textContent = text + ' ';
+}
+
+/* ── Modal ── */
+function openModal() {
+  document.getElementById('apiKeyInput').value = apiKey;
+  document.getElementById('keyStatus').textContent = '';
+  document.getElementById('modalOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('apiKeyInput').focus(), 100);
+}
+
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+function closeModalOutside(e) { if (e.target === document.getElementById('modalOverlay')) closeModal(); }
+
+function updateKeyPreview() {
+  const val = document.getElementById('apiKeyInput').value.trim();
+  const el  = document.getElementById('keyStatus');
+  if (!val) { el.textContent = ''; el.className = ''; return; }
+  if (val.startsWith('sk-ant-')) { el.textContent = '✓ Looks like a valid Anthropic key'; el.className = 'key-valid'; }
+  else { el.textContent = '⚠ Key should start with sk-ant-'; el.className = 'key-invalid'; }
+}
+
+function saveKey() {
+  apiKey = document.getElementById('apiKeyInput').value.trim();
+  localStorage.setItem('qw_apiKey', apiKey);
+  updateApiBtn(); closeModal();
+}
+
+function updateApiBtn() {
+  document.getElementById('apiLabel').textContent = apiKey ? t('apiKeySaved') : t('apiLabel');
+  document.getElementById('apiBtn').classList.toggle('has-key', !!apiKey);
+}
+
+/* ── Fetch + stream ── */
+async function fetchStream(messages) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'x-api-key':apiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+    body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1024, stream:true, messages }),
+  });
+  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error?.message || `API error ${res.status}`); }
+  return res;
+}
+
+async function streamInto(res, onChunk) {
+  const reader = res.body.getReader(), dec = new TextDecoder();
+  let full = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    for (const line of dec.decode(value,{stream:true}).split('\n')) {
+      if (!line.startsWith('data: ')) continue;
+      const data = line.slice(6).trim();
+      if (data === '[DONE]') break;
+      try { const p = JSON.parse(data); if (p.type==='content_block_delta'&&p.delta?.type==='text_delta') { full+=p.delta.text; onChunk(full,false); } } catch {}
+    }
+  }
+  onChunk(full, true);
+}
+
+/* ── Route ── */
+function handleGenerate() { mode === 'text' ? generateTexts() : generate(); }
+
+/* ══ EMAIL / MESSAGE ══ */
+function buildWritePrompt(ri = null) {
+  const ctx=document.getElementById('context').value.trim(), kp=document.getElementById('keypoints').value.trim(),
+        rec=document.getElementById('recipient').value.trim(), drft=document.getElementById('draft').value.trim();
+  if (!ctx && !drft) return null;
+  const L = t('langPrompt');
+  if (ri && currentOutput) {
+    let p = `Rewrite the following ${mode} to be ${ri}. Keep the same core message. ${L} Return ONLY the rewritten ${mode}.\n\n`;
+    if (mode==='email'&&currentSubject) p += `Subject: ${currentSubject}\n\n`;
+    return p + currentOutput;
+  }
+  let p = `You are an expert writer. Write a ${tone} ${mode==='email'?'email':'message'}. ${L}\n\n`;
+  if (ctx)  p += `Context: ${ctx}\n`;
+  if (rec)  p += `To: ${rec}\n`;
+  if (kp)   p += `\nKey points:\n${kp}\n`;
+  if (drft) p += `\nImprove this draft:\n${drft}\n`;
+  if (mode==='email') p += `\nFormat: subject first with literal prefix "Subject: " (always this exact English prefix), blank line, then body.`;
+  else p += `\nJust write the message. No labels.`;
+  return p + `\n\nBe natural, ${tone}, human-sounding.`;
+}
+
+async function generate(ri = null) {
+  if (!apiKey) { openModal(); return; }
+  const prompt = buildWritePrompt(ri);
+  if (!prompt) { alert(t('alertEmpty')); return; }
+  setLoading(true);
+  document.getElementById('outputBody').innerHTML = `<div id="streamOutput" class="output-text cursor"></div>`;
+  document.getElementById('refineBar').style.display = 'flex';
+  document.getElementById('actionBar').style.display = 'flex';
+  document.getElementById('statsBar').style.display  = 'flex';
+  setRefineEnabled(false); setWriteActionEnabled(false);
+  try {
+    const res = await fetchStream([{role:'user',content:prompt}]);
+    await streamInto(res,(text,done)=>{ renderWriteOutput(text,!done); if(done) finalizeWriteOutput(text); });
+  } catch(e) { showError(e.message); } finally { setLoading(false); }
+}
+
+function renderWriteOutput(text, isSt) {
+  const el = document.getElementById('streamOutput'); if (!el) return;
+  if (mode==='email') {
+    const m = text.match(/^Subject:\s*(.+)/m);
+    if (m) {
+      const subj=m[1].trim(), body=text.replace(/^Subject:\s*.+\n?\n?/m,'').trim();
+      el.innerHTML=''; el.classList.remove('output-text');
+      const sb=document.createElement('div'); sb.className='subject-box';
+      sb.innerHTML=`<div class="subject-label">${escHtml(t('subjectLabel'))}</div><div class="subject-text">${escHtml(subj)}</div>`;
+      el.appendChild(sb);
+      const be=document.createElement('div'); be.className='output-text'+(isSt?' cursor':'');
+      be.textContent=body; el.appendChild(be);
+    } else { el.textContent=text; if(!isSt)el.classList.remove('cursor'); }
+  } else { el.textContent=text; if(!isSt)el.classList.remove('cursor'); }
+}
+
+function finalizeWriteOutput(text) {
+  currentOutput=''; currentSubject='';
+  if (mode==='email') { const m=text.match(/^Subject:\s*(.+)/m); if(m){currentSubject=m[1].trim();currentOutput=text.replace(/^Subject:\s*.+\n?\n?/m,'').trim();}else currentOutput=text; }
+  else currentOutput=text;
+  renderWriteOutput(text,false); updateStats(currentOutput);
+  setRefineEnabled(true); setWriteActionEnabled(true);
+  const cb=document.getElementById('copySubjectBtn');
+  if(mode==='email'&&currentSubject){cb.style.display='';cb.disabled=false;}else cb.style.display='none';
+}
+
+function updateStats(text) {
+  const isCJK=LANGS[lang].isCJK, count=isCJK?text.replace(/\s/g,'').length:text.trim().split(/\s+/).filter(Boolean).length;
+  const lines=text.trim().split('\n').length, rt=Math.ceil(count/(isCJK?500:200));
+  document.getElementById('wordCountStat').textContent=count;
+  document.getElementById('lineCountStat').textContent=lines;
+  document.getElementById('readTimeStat').textContent=rt<1?'<1 min':`${rt} min`;
+}
+
+function refine(instruction) { generate(instruction); }
+function setRefineEnabled(on) { ['shorterBtn','longerBtn','formalBtn','casualBtn','directBtn'].forEach(id=>{document.getElementById(id).disabled=!on;}); }
+function setWriteActionEnabled(on) { ['copyBtn','clearBtn'].forEach(id=>{const e=document.getElementById(id);if(e)e.disabled=!on;}); }
+
+async function copyOutput() {
+  if (!currentOutput) return;
+  await navigator.clipboard.writeText(currentOutput);
+  const btn=document.getElementById('copyBtn'); btn.classList.add('copied'); btn.textContent=t('copiedText');
+  setTimeout(()=>{btn.classList.remove('copied');btn.textContent=t('copyBtn');},2000);
+}
+
+async function copySubject() {
+  if (!currentSubject) return;
+  await navigator.clipboard.writeText(currentSubject);
+  const btn=document.getElementById('copySubjectBtn'); btn.classList.add('copied'); btn.textContent=t('copiedText');
+  setTimeout(()=>{btn.classList.remove('copied');btn.textContent=t('copySubjectBtn');},2000);
+}
+
+/* ══ TEXT ══ */
+const VIBE_DESC = {
+  funny:     'funny and witty — use humor and a funny emoji naturally',
+  sweet:     'sweet, warm, heartfelt — kind and genuinely caring',
+  hype:      'hype and excited — tons of energy, exclamation points, hype emojis',
+  chill:     'super chill and low-key — casual, relaxed, no-pressure vibe',
+  flirty:    'flirty and playful — charming with a hint of teasing',
+  sorry:     'apologetic and sincere — genuinely sorry, warm and humble',
+  dead:      'shocked / "I\'m literally dead 💀" — peak Gen Z energy, dying of something',
+  savage:    'savage and bold — honest and direct, maybe a light roast, still friendly',
+  support:   'supportive and encouraging — uplifting, warm, "I got you" energy',
+  celebrate: 'celebratory and hype — party vibes, genuine excitement, make them feel celebrated 🎉',
+  sarcastic: 'lightly sarcastic and witty — playful sarcasm, clearly not mean',
+  dramatic:  'overdramatic and extra — exaggerate everything, theatrical, "I literally cannot"',
+};
+
+function buildTextsPrompt() {
+  const ctx=document.getElementById('context').value.trim(), they=document.getElementById('theyMsg').value.trim(), you=document.getElementById('youWant').value.trim();
+  if (!ctx && !they) return null;
+  let p = `You are helping write a casual text message to a friend. ${t('langPrompt')}\nVibe: ${VIBE_DESC[vibe]||vibe}\n`;
+  if (ctx)  p += `Situation: ${ctx}\n`;
+  if (they) p += `They said: "${they}"\n`;
+  if (you)  p += `What they want to say: ${you}\n`;
+  p += `\nWrite exactly 3 short text message options. Each should be 1-3 sentences max, casual and natural like a real person texting. Use emojis where they fit.\nFormat exactly:\nOption 1: [message]\nOption 2: [message]\nOption 3: [message]`;
+  return p;
+}
+
+async function generateTexts() {
+  if (!apiKey) { openModal(); return; }
+  const prompt = buildTextsPrompt();
+  if (!prompt) { alert(t('alertEmpty')); return; }
+  setLoading(true);
+  document.getElementById('refineBar').style.display = 'none';
+  document.getElementById('statsBar').style.display  = 'none';
+  document.getElementById('actionBar').style.display = 'none';
+  document.getElementById('outputBody').innerHTML = `<div class="texts-streaming cursor" id="textsStream"></div>`;
+  try {
+    const res = await fetchStream([{role:'user',content:prompt}]);
+    let last='';
+    await streamInto(res,(text,done)=>{
+      const el=document.getElementById('textsStream'); if(el){el.textContent=text;if(done)el.classList.remove('cursor');}
+      last=text; if(done) renderTextOptions(text);
+    });
+  } catch(e) { showError(e.message); } finally { setLoading(false); }
+}
+
+function renderTextOptions(text) {
+  const opts=[], re=/Option\s*\d+:\s*(.+?)(?=Option\s*\d+:|$)/gs; let m;
+  while((m=re.exec(text))!==null){const o=m[1].trim();if(o)opts.push(o);}
+  const items=opts.length?opts:[text];
+  const label=t('optionLabel');
+  const html=items.map((o,i)=>`
+    <div class="text-card">
+      <div class="text-card-label">${label} ${i+1}</div>
+      <div class="text-card-body" id="textOpt${i}">${escHtml(o)}</div>
+      <div class="text-card-footer">
+        <button class="copy-card-btn" onclick="copyCard(this,'textOpt${i}')">📋 Copy</button>
+      </div>
+    </div>`).join('');
+  document.getElementById('outputBody').innerHTML=`<div class="text-options">${html}</div>`;
+  document.getElementById('actionBar').style.display='flex';
+  document.getElementById('clearBtn').disabled=false;
+}
+
+async function copyCard(btn, id) {
+  const text=document.getElementById(id)?.textContent||'';
+  await navigator.clipboard.writeText(text);
+  btn.classList.add('copied'); btn.textContent=t('copiedText');
+  setTimeout(()=>{btn.classList.remove('copied');btn.textContent='📋 Copy';},2000);
+}
+
+/* ── Shared ── */
+function setLoading(on) {
+  isLoading=on;
+  document.getElementById('generateBtn').disabled=on;
+  document.getElementById('btnContent').innerHTML=on?`<div class="spinner"></div> ${t('generatingBtn')}`:t('generateBtn');
+  if(on){setRefineEnabled(false);setWriteActionEnabled(false);}
+}
+
+function showError(msg) {
+  document.getElementById('outputBody').innerHTML=`<div style="flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:var(--red);padding:30px;text-align:center"><div style="font-size:2.2rem">⚠️</div><div style="font-weight:600">${escHtml(t('errorTitle'))}</div><div style="font-size:0.83rem;color:var(--text2)">${escHtml(msg)}</div></div>`;
+}
+
+function clearOutput() {
+  currentOutput=''; currentSubject='';
+  const icon=mode==='text'?'📱':'✨';
+  document.getElementById('outputBody').innerHTML=`<div class="empty-state"><div class="empty-icon">${icon}</div><p id="emptyStateMsg">${escHtml(t('emptyStateMsg'))}</p></div>`;
+  ['refineBar','actionBar','statsBar'].forEach(id=>document.getElementById(id).style.display='none');
+}
+
+document.getElementById('context').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey))handleGenerate();});
+
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+</script>
+</body>
+</html>
